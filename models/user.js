@@ -1,12 +1,10 @@
+// File: models/User.js
 const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema(
   {
-    clerkUserId: {
-      type: String,
-      unique: true,
-      sparse: true, // Add this line
-    },
+    // clerkUserId and googleId have been removed.
+
     name: {
       type: String,
       required: true,
@@ -20,16 +18,20 @@ const userSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: function () {
-        return !this.googleId; // Only required if not using Google
-      },
-    },
-    googleId: {
-      type: String,
+      required: true, // Password is now always required.
     },
     photo: {
       type: String,
-      default: "https://example.com/default-profile.png", // Default profile picture URL
+      // It's better to handle a default on the frontend
+      // or leave it null/undefined in the database.
+      default: null,
+    },
+
+    passwordResetOTP: {
+      type: String, // We'll store the HASHED OTP here
+    },
+    passwordResetOTPExpires: {
+      type: Date,
     },
   },
   { timestamps: true }

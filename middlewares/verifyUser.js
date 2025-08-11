@@ -1,47 +1,28 @@
 const jwt = require('jsonwebtoken');
-const jwksClient = require('jwks-rsa');
+require('dotenv').config();
 
-// Read the JWKS URL from environment variables instead of hardcoding it
-const CLERK_JWKS_URL = process.env.CLERK_JWKS_URL;
-
-// Add a check to ensure the variable is loaded correctly
-if (!CLERK_JWKS_URL) {
-  throw new Error("Missing CLERK_JWKS_URL in .env file.");
-}
-
-const client = jwksClient({
-  jwksUri: CLERK_JWKS_URL
-});
-
-function getKey(header, callback) {
-  client.getSigningKey(header.kid, function(err, key) {
-    if (err) {
-      return callback(err);
-    }
-    const signingKey = key.getPublicKey();
-    callback(null, signingKey);
-  });
-}
-
+// This middleware verifies tokens that YOUR server created.
 const verifyToken = (req, res, next) => {
-  // ... the rest of your verifyToken function remains the same
-  const authHeader = req.headers.authorization;
+    // Get the token from the Authorization header
+    const authHeader = req.headers.authorization;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ message: 'Authentication token is required.' });
-  }
-
-  const token = authHeader.split(' ')[1];
-
-  jwt.verify(token, getKey, { algorithms: ['RS256'] }, (err, decoded) => {
-    if (err) {
-      console.error("JWT Verification Error:", err);
-      return res.status(401).json({ message: 'Invalid or expired token.' });
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ message: 'No token provided or token is malformed.' });
     }
-    
-    req.user = { id: decoded.sub };
-    next();
-  });
+
+    const token = authHeader.split(' ')[1];
+
+    try {
+        // Verify the token using YOUR own JWT_SECRET
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        
+        // Attach the decoded user information to the request object
+        req.user = decoded; // The decoded object will contain { id: '...', name: '...', ... }
+        
+        next(); // Proceed to the next function (the controller)
+    } catch (error) {
+        return res.status(401).json({ message: 'Invalid or expired token.' });
+    }
 };
 
-module.exports = { verifyToken };
+module.exports = verifyToken;
