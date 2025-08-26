@@ -4,14 +4,20 @@ const express = require("express");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const router = express.Router();
 require("dotenv").config();
+
 // Initialize the Gemini AI Client
-// It automatically finds the GEMINI_API_KEY in your .env file
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+// ------------------
+// In-memory history
+// ------------------
+let chatHistory = []; // resets when server restarts
 
 // This is the "brain" or "context" for your chatbot.
 const mpiKnowledgeBase = `
 You are MathareForPeace-GPT, an expert AI assistant for the Mathare Peace Initiative (MPI) Kenya. 
-Your sole purpose is to answer questions about MPI and general peace-related knowledge that can benefit communities and individuals you should be very descriptive so as users can understand more about us. 
+Your sole purpose is to answer questions about MPI and general peace-related knowledge that can benefit communities and individuals. 
+You should be very descriptive so users can understand more about us. 
 Your tone should be helpful, friendly, and professional. 
 If asked about topics unrelated to MPI or peace, politely decline and steer the conversation back to MPI or peace-related subjects.
 
@@ -22,7 +28,7 @@ If asked about topics unrelated to MPI or peace, politely decline and steer the 
 - **Type:** Youth-led, Community-Based Organization (CBO)
 - **Founded:** 2014
 - **Location:** Behind Mathare DCC Office, Mathare, Nairobi
-- **Director:** Founded and directed by Alphonce Were, a respected and dedicated  peacebuilder
+- **Director:** Founded and directed by Alphonce Were, a respected and dedicated peacebuilder
 - **Website:** https://mpikenya.org
 - **Email:** info@mpikenya.org
 - **Phone:** +254 722 419 980
@@ -75,8 +81,18 @@ It provides spaces for dialogue, supports conflict resolution, and runs programs
    - Peace is built through justice, equality, and dialogue.
    - Nonviolence is stronger in the long-term than revenge.
    - Great peacebuilders like Nelson Mandela, Wangari Maathai, and Martin Luther King Jr. showed that reconciliation changes history.
-services monetized.... We also provide income-generating services that equip youth with
-            practical skills and contribute to sustaining our operations:• Computer Packages Training (Beginner to Advanced)• Professional Video & Photo Editing • Branding & Printing (Clothes, Hoodies, Posters)• Sale of Branded Clothing & Merchandise • Professional Web & Mobile App Development (Frontend & Backend)
+
+---------------------------------------
+📌 Monetized Services
+---------------------------------------
+We also provide income-generating services that equip youth with
+practical skills and contribute to sustaining our operations:
+• Computer Packages Training (Beginner to Advanced)
+• Professional Video & Photo Editing 
+• Branding & Printing (Clothes, Hoodies, Posters)
+• Sale of Branded Clothing & Merchandise 
+• Professional Web & Mobile App Development (Frontend & Backend)
+
 ---------------------------------------
 📌 Value to App Users
 ---------------------------------------
@@ -93,33 +109,40 @@ MathareForPeace-GPT is not just an information source — it is your companion i
 and staying connected with Mathare Peace Initiative Kenya and the wider peacebuilding world.
 `;
 
-// routes/chatbot.routes.js
-
+// ------------------
+// Chat Endpoint
+// ------------------
 router.post("/chat", async (req, res) => {
-  console.log("\n--- [NON-STREAMING DEBUG TEST] ---");
+  console.log("\n--- [CONVERSATION MODE] ---");
   try {
     const { message } = req.body;
     console.log("Message received:", message);
 
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    // We are NOT using startChat or sendMessageStream here.
+    // Save user message
+    chatHistory.push({ role: "user", content: message });
+
+    // Create history text
+    const formattedHistory = chatHistory
+      .map((entry) => `${entry.role === "user" ? "User" : "Bot"}: ${entry.content}`)
+      .join("\n");
+
+    // Ask Gemini with memory
     const result = await model.generateContent(
-      // We combine the history and the new message into one prompt.
-      `${mpiKnowledgeBase}\n\nUser: ${message}`
+      `${mpiKnowledgeBase}\n\n${formattedHistory}\nBot:`
     );
 
     const response = await result.response;
-
-    // THIS IS THE MOST IMPORTANT LINE - It will show us the raw response from Gemini
-    console.log("RAW GEMINI RESPONSE:", JSON.stringify(response, null, 2));
-
     const text = response.text();
-    console.log("Response text extracted:", text);
 
-    res.json({ reply: text }); // Send a simple JSON response
+    // Save bot reply
+    chatHistory.push({ role: "bot", content: text });
+
+    console.log("Bot reply:", text);
+    res.json({ reply: text });
   } catch (error) {
-    console.error("🔥🔥🔥 DEBUG TEST FAILED 🔥🔥🔥", error);
+    console.error("🔥🔥🔥 Conversation Failed 🔥🔥🔥", error);
     res.status(500).send({ error: "Failed to get a response from the AI." });
   }
 });
